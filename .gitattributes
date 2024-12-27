@@ -1,2 +1,0 @@
-forward_index.json filter=lfs diff=lfs merge=lfs -text
-inverted_index.json filter=lfs diff=lfs merge=lfs -text

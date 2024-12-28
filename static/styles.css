@@ -1,0 +1,269 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f2f2f2;
+}
+
+.search-container {
+    text-align: center;
+}
+
+.logo {
+    font-size: 24px;
+}
+
+.sticky {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: #ffffff; 
+    padding: 10px; 
+    border-bottom: 1px solid #ccc; 
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); 
+}
+
+.sticky form {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+#search-query {
+    width: 400px;
+    height: 30px;
+    padding: 10px;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 4px; 
+}
+
+
+button {
+    height: 48px;
+    width: 100px;
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+button:hover {
+    background-color: #45a049;
+    transform: scale(1.05);
+}
+
+
+.results-container {
+    width: 80%;
+    max-width: 900px;
+    margin-top: 50px;
+}
+
+#timing-info {
+    margin-top: 20px; 
+    color: #4CAF50; 
+    font-size: 16px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.result {
+    background-color: white;
+    border: 1px solid #ddd;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.result:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2);
+} 
+
+.result h3 {
+    font-size: 22px;
+    margin: 0;
+}
+
+.result p {
+    color: #555;
+    margin: 5px 0;
+}
+
+.result a {
+    color: #218838;  
+    text-decoration: none; 
+}
+
+.result a:hover {
+    color: #28a745;  
+    text-decoration: underline;  
+}
+
+.centered-error {
+    color: red;
+    font-size: 1.2em;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 20px;
+}
+
+#message-container { 
+    color: lightgreen;
+    text-align: center; 
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+
+.add-document-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: #4CAF50;
+    color: white;
+    padding: 15px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 50%;
+    text-decoration: none;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+.add-document-button:hover {
+    background-color: #45a049;
+    transform: scale(1.2);
+}
+
+/* Form Styling */
+.add-document-form {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 20px auto; /* Center form vertically */
+    gap: 15px;
+    width: 90%; /* Use most of the page width */
+    max-width: 1200px; /* Limit the form width for larger screens */
+    box-sizing: border-box;
+    align-items: center;
+}
+
+/* Make input and textarea elements span the entire form width */
+.add-document-form input[type="text"],
+.add-document-form input[type="url"],
+.add-document-form input[type="datetime-local"],
+.add-document-form textarea {
+    width: 100%; /* Full width of the form */
+    padding: 15px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    box-sizing: border-box;
+}
+
+/* Make the text area larger, scrollable and expandable */
+textarea {
+    resize: vertical; /* Allow vertical resizing */
+    height: 200px; /* Set initial height for the textarea */
+    max-height: 500px; /* Limit the maximum height */
+    overflow-y: auto; /* Enable scroll if content exceeds the height */
+}
+
+
+/* Styling for Submit and Back buttons container */
+.buttons-container {
+    bottom: 20px;
+    right: 20px;
+    position: fixed;
+    display: flex;
+    justify-content: flex-end; 
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Button Styles for Submit and Back */
+.submit-button, .back-button {
+    padding: 15px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+}
+
+/* Submit Button */
+.submit-button {
+    background-color: #4CAF50;
+}
+
+.submit-button:hover {
+    background-color: #45a049;
+    transform: scale(1.1);
+}
+
+/* Back Button */
+.back-button {
+    background-color: #f44336;
+    text-align: center;
+}
+
+.back-button:hover {
+    background-color: #e53935;
+    transform: scale(1.1);
+}
+
+/* Optional: Ensure buttons are aligned next to each other */
+.buttons-container a, .buttons-container button {
+    text-align: center;
+}
+
+
+.add-document-form input,
+.add-document-form textarea {
+    width: 80%;
+    max-width: 500px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+
+.loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

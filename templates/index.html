@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Engine</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+    <div class="logo">
+        <h1>Search Engine</h1>
+    </div>
+
+    <!-- Search Bar Section -->
+    <div class="search-container sticky">
+        <form id="search-form" onsubmit="handleSearch(event)">
+            <input type="text" id="search-query" placeholder="Search..." autofocus required>
+            <button type="submit">Search</button>
+        </form>
+    </div>
+
+    <!-- Timing Information -->
+    <div id="timing-info"></div>
+
+    <!-- Message Section -->
+    <div id="message-container"></div>
+ 
+    <!-- Results Section -->
+    <div id="results-container" class="results-container"></div>
+
+    <!-- Loading Spinner --> 
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Add New Document Button -->
+    <a href="{{ url_for('add_document') }}" class="add-document-button">+</a>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+
+</html>

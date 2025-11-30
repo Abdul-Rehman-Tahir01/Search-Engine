@@ -126,7 +126,6 @@ def add_document():
 def submit_document():
     try:
         # Retrieve JSON data from the request
-        print("HERE")
         data = request.get_json()
         title = data.get('title')
         text = data.get('text')

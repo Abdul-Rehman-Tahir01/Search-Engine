@@ -8,7 +8,7 @@ with open('JSON Files/lexicon.json') as f:
     lexicon = json.load(f)
 
 
-# Getting the closest match by jaccard similarity
+# ========= Getting the closest match by jaccard similarity =========
 def generate_ngrams(word, n=3):
     return [word[i:i+n] for i in range(len(word) - n + 1)]
 
@@ -33,7 +33,7 @@ def get_closest_match(query, lexicon, n=3):
     return best_match
 
 
-# Determining which barrel to search based on the word id
+# ========= Determining which barrel to search based on the word id =========
 def get_barrel(word_id):
     # For barrel_10_1 to barrel_10_1000 (First 10000 words)
     if word_id < 10000:
@@ -51,16 +51,14 @@ def get_barrel(word_id):
         return f'Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
 
 
-# Ranking the documents
+# ========= Ranking the documents =========
 def calculate_score(posting):
     score = 0
 
-    # Getting the term frequency from the title and the text of document
     tf_title = posting['positions'].get('title', 0)
     tf_text = posting['positions'].get('text', 0)
 
-    # Calculating the score
-    score = (tf_title*10) + (tf_text*0.5)  # Giving more weight to the title than the text
+    score = (tf_title*10) + (tf_text*0.5) 
     return score
 
 def rank_documents(postings_list):
@@ -76,9 +74,9 @@ def rank_documents(postings_list):
     return ranked_docs
 
 
-# The single word search function
+# ========= The single word search function =========
 def single_word_search(query, lexicon):
-    query = query.lower()  # Normalizing the query
+    query = query.lower() 
     result_metadata = {'message': None}
 
     if query not in lexicon:
@@ -112,17 +110,16 @@ def single_word_search(query, lexicon):
         return f"Barrel file '{barrel_file}' not found", result_metadata
     
 
-# The multiple word search function
+# ========= The multiple word search function =========
 def multiple_word_search(query_string, lexicon=lexicon):
     original_query = query_string
     print(f"\nQuery: {original_query}")
 
-    # Removing punctuation marks from the query
     for char in query_string:
         if char in string.punctuation:
-            query_string = query_string.replace(char, '')  # Removing punctuation marks from the query
+            query_string = query_string.replace(char, '') 
 
-    query_words = query_string.lower().split()  # Normalizing and then splitting the query
+    query_words = query_string.lower().split()  
     if not query_words:
         return f"No result found for query: '{original_query}'\nQuery contains only punctuation marks."
     
@@ -135,7 +132,6 @@ def multiple_word_search(query_string, lexicon=lexicon):
     # Getting the list of documents for each word in the query
     posting_list = []
 
-    # Fetch posting list for each word in the query
     for word in query_words:
         postings, result_metadata = single_word_search(word, lexicon)
 
@@ -150,7 +146,6 @@ def multiple_word_search(query_string, lexicon=lexicon):
     for postings in posting_list[1:]:
         intersection_docs.intersection_update(postings.keys())
 
-    # Collecting final postings from intersection
     ranked_results = []
     if intersection_docs: 
         intersection_postings = {
@@ -172,7 +167,6 @@ def multiple_word_search(query_string, lexicon=lexicon):
         # Excluding intersection documents from the union
         union_docs.difference_update(intersection_docs)
 
-        # Collecting final postings from union
         union_postings = {
             doc_id: postings[doc_id] for postings in posting_list for doc_id in union_docs if doc_id in postings
         }

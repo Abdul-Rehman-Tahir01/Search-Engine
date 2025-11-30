@@ -43,20 +43,15 @@ def get_wordnet_pos(tag):
 
 # Function to preprocess the title and text of the documents
 def preprocess(title_text_pairs, doc_ids, lexicon):
-    # Creating the list of stopwords to be removed from the text
     stop_words = set(stopwords.words('english'))
-
-    # Initializing the WordNetLemmatizer and SpellChecker
     lemmatizer = WordNetLemmatizer()
 
     forward_index = {}
     
     for (title, text), doc_id in zip(title_text_pairs, doc_ids): 
-        # Tokenization and normalization
         title_tokens = word_tokenize(title.lower())
         text_tokens = word_tokenize(text.lower())
 
-        # Lemmatization and stopword removal
         title_tokens = [
             lemmatizer.lemmatize(word, pos=get_wordnet_pos(pos_tag([word])[0][1]) or 'n')
             for word in title_tokens if word.isalpha()
@@ -71,20 +66,18 @@ def preprocess(title_text_pairs, doc_ids, lexicon):
             and word not in string.punctuation
         ]
 
-        # Mapping words to word IDs
         token_ids_title = []
         for word in title_tokens:
             if word not in lexicon:
-                lexicon[word] = len(lexicon)  # Add new word to lexicon with unique ID
+                lexicon[word] = len(lexicon)  
             token_ids_title.append(lexicon[word])
 
         token_ids_text = []
         for word in text_tokens:
             if word not in lexicon:
-                lexicon[word] = len(lexicon)  # Add new word to lexicon with unique ID
+                lexicon[word] = len(lexicon)  
             token_ids_text.append(lexicon[word])
 
-        # Updating forward index with title and text word IDs
         forward_index[doc_id] = {
             'title': token_ids_title,
             'text': token_ids_text
@@ -233,8 +226,3 @@ def addDocument_toMetadata(df):
 
     print(f'Metadata updated with new document. Length: {len(metadata)}')
     print(dict([list(metadata.items())[-1]]))
-
-
-
-
-

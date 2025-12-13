@@ -191,10 +191,43 @@ def update_barrel(word_id, inverted_data):
         print(f"Word ID {word_id} does not exist, adding to the barrel.")
         barrel_data[word_id] = inverted_data
 
-    # Invariant Assertion
+    # Invariant Assertion, df == len(postings)
     df = barrel_data[word_id]['df']
     postings = barrel_data[word_id]['postings']
     assert df == len(postings), f"df mismatch for word_id {word_id}: df={df}, postings={len(postings)}"
+
+    # Invariant Assertion, positing must have 'tf' and 'position' keys
+    for doc_id, posting in barrel_data[word_id]['postings'].items():
+        assert 'tf' in posting, (
+            f"Missing 'tf' in posting for word_id {word_id}, doc_id {doc_id}"
+        )
+        assert 'positions' in posting, (
+            f"Missing 'positions' in posting for word_id {word_id}, doc_id {doc_id}"
+        )
+
+        positions = posting['positions']
+        assert isinstance(positions, dict), (
+            f"'positions' must be a dict for word_id {word_id}, doc_id {doc_id}"
+        )
+        assert 'title' in positions and 'text' in positions, (
+            f"Missing 'title' or 'text' in positions for word_id {word_id}, doc_id {doc_id}"
+        )
+
+    # Invariant Assertion, tf must be equal to the sum of 'title' and 'text'
+    for doc_id, posting in barrel_data[word_id]['postings'].items():
+        positions = posting['positions']
+        title_pos = positions.get('title', 0)
+        text_pos = positions.get('text', 0)
+        
+        # tf must be positive and equal to sum of title + text occurrences
+        assert posting['tf'] == title_pos + text_pos, (
+            f"tf mismatch for word_id {word_id}, doc_id {doc_id}: "
+            f"tf={posting['tf']}, title_pos={title_pos}, text_pos={text_pos}"
+        )
+        assert posting['tf'] >= 1, (
+            f"tf must be >= 1 for word_id {word_id}, doc_id {doc_id}"
+        )
+
 # =====================================================================================
 
     # Save the updated barrel data back to the file

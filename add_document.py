@@ -161,6 +161,43 @@ def get_barrel(word_id):
         return f'Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
     
 
+'''
+Merge a partial inverted index entry for a single word_id into the corresponding barrel file. If the word_id is already present in the barrel, update its postings and df accordingly. 
+If not, create a new entry for that word_id. Enforce index invariants for that word_id.
+
+@params
+    word_id: int
+    A valid word identifier (as used in the lexicon and inverted index)
+
+    Preconditions:
+            - word_id is a non-negative integer.
+            - get_barrel(word_id) returns a valid path for the barrel file where this word_id belongs.
+    
+    inverted_data: dict
+    An inverted index for the provided word_id
+
+    Preconditions:
+            - inverted_data has keys 'df' and 'postings'.
+            - inverted_data['df'] equals the number of distinct doc_ids in inverted_data['postings'].
+            - For each posting:
+                - 'tf' and 'positions' keys exist.
+                - 'positions' contains 'title' and 'text'.
+                - tf == positions['title'] + positions['text'] and tf ≥ 1.
+
+@returns
+    None (no direct return value). Mutates the barrel object by loading and updating the corresponding barrel.
+
+    PostConditions:
+        For every word_id that appear in new_forward_index[doc_id]['title'] or ['text'] for any doc_id:
+            - The barrel file exists on disk after the call.
+            - In that barrel, there is an entry of that word_id with correct posting list structure.
+            - For each doc_id ∈ D where word_id appears in its title/text:
+                - doc_id is present in postings.
+                - tf == positions['title'] + positions['text'] for that doc_id.
+            - For that word_id:
+                - df equals the number of distinct doc_ids in postings.
+        No other word_id entries in barrel_data (i.e., other keys than W_id) are modified by this call.
+'''
 # Function to add the new inverted index words to the respective barrel
 def update_barrel(word_id, inverted_data):
     barrel_file = get_barrel(word_id)
@@ -236,6 +273,34 @@ def update_barrel(word_id, inverted_data):
     print(f'{barrel_file} updated with {len(barrel_data)} words')
 
 
+'''
+Given a forward index for one or more documents, construct the corresponding inverted index entries for those word_ids and persistently merge them into
+the appropriate barrel files so that the documents become searchable by those words.
+
+@params
+    new_forward_index: dict - Forward index of the new document
+
+    PreConditions: 
+        - new_forward_index is non-empty.
+        - For each doc_id:
+            - 'title' and 'text' keys exist.
+            - new_forward_index[doc_id]['title'] and ['text'] are lists of non-negative integers (word_ids).
+        - All word_ids used in new_forward_index are consistent with the global lexicon (i.e., valid ids).
+        - Each document in new_forward_index represents a new logical document to be indexed.
+
+@returns
+    None (no direct return value). Mutates the barrel object by loading and updating the corresponding barrel.
+
+    PostConditions:
+        For every word_id that appear in new_forward_index[doc_id]['title'] or ['text'] for any doc_id:
+            - The barrel file exists on disk after the call.
+            - In that barrel, there is an entry of that word_id with correct posting list structure.
+            - For each doc_id ∈ D where word_id appears in its title/text:
+                - doc_id is present in postings.
+                - tf == positions['title'] + positions['text'] for that doc_id.
+            - For that word_id:
+                - df equals the number of distinct doc_ids in postings.
+'''
 def addDocument_toBarrel(new_forward_index):
     # Initializing inverted index
     inverted_index = {}

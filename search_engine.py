@@ -9,14 +9,73 @@ with open('JSON Files/lexicon.json') as f:
 
 
 # ========= Getting the closest match by jaccard similarity =========
+'''
+Generate all contiguous character n-grams of length n from the given word.
+@params
+    word: str
+        The input string from which n-grams will be generated.
+    n: int
+        The length of each n-gram (default 3).
+
+    Preconditions:
+        - word is a string (isinstance(word, str)).
+        - n is an integer and n >= 1.
+
+@return
+    A list of strings, each of length n, representing all contiguous n-grams of 'word'.
+'''
 def generate_ngrams(word, n=3):
     return [word[i:i+n] for i in range(len(word) - n + 1)]
 
+
+'''
+Compute the Jaccard similarity between two collections of n-grams, defined as |intersection| / |union| of their n-gram sets.
+@params
+    grams1: iterable of hashable items 
+    grams2: iterable of hashable items
+
+    Preconditions:
+        - grams1 and grams2 are iterable.
+        - Elements of grams1 and grams2 are hashable (can be placed in a set).
+
+@return
+    A float value in the range [0, 1], representing the Jaccard similarity.
+'''
 def jaccard_similarity(grams1, grams2):
     intersection = set(grams1).intersection(set(grams2))
     union = set(grams1).union(set(grams2))
     return len(intersection) / len(union)
 
+
+'''
+Given a query string and a lexicon of words, find the lexicon word with the highest Jaccard similarity between their character n-grams.
+@params
+    query: str
+        The input query word to match.
+    lexicon: iterable or mapping of strings
+        A collection of candidate words.
+    n: int
+        The n-gram length used to compute Jaccard similarity (default 3).
+
+    Preconditions (for a non-None result):
+        - query is a string with length >= n.
+        - lexicon is non-empty.
+        - Lexicon words are strings; at least one word has length >= n.
+        - There exists at least one word in lexicon whose n-grams share
+          at least one n-gram with generate_ngrams(query, n).
+
+@return
+    A string representing one closest-matching word from the lexicon,
+    or None if no word achieves a positive similarity or lexicon is empty.
+
+    Postconditions:
+        - The return value 'best_match' is not None.
+        - best_match is an element of lexicon.
+        - For all words in lexicon:
+              similarity(best_match) >= similarity(word).
+        - If multiple words achieve the same maximum similarity value:
+              The function returns the first such word encountered in the iteration order of lexicon
+'''
 def get_closest_match(query, lexicon, n=3):
     query_ngrams = generate_ngrams(query, n)
     best_match = None

@@ -173,19 +173,29 @@ def update_barrel(word_id, inverted_data):
         print(f"{barrel_file} does not exist, creating a new barrel.")
         barrel_data = {}
 
-    
-    # Checking if the word already exists in the barrel
+# =====================================================================================
     word_id = str(word_id)
-    if word_id in barrel_data.keys():
+    
+    if word_id in barrel_data:
         print(f"Word ID {word_id} already exists in the barrel.")
-        barrel_data[word_id]['df'] += inverted_data['df']
+    
 
         for doc_id, posting in inverted_data['postings'].items():
-            print(f"Updating doc ID: {doc_id}")
+            if doc_id not in barrel_data[word_id]['postings']:
+                # New document for this word_id → increment df
+                barrel_data[word_id]['df'] += 1
+
+            # In all cases, set/overwrite posting
             barrel_data[word_id]['postings'][doc_id] = posting
     else:
         print(f"Word ID {word_id} does not exist, adding to the barrel.")
         barrel_data[word_id] = inverted_data
+
+    # Invariant Assertion
+    df = barrel_data[word_id]['df']
+    postings = barrel_data[word_id]['postings']
+    assert df == len(postings), f"df mismatch for word_id {word_id}: df={df}, postings={len(postings)}"
+# =====================================================================================
 
     # Save the updated barrel data back to the file
     with open(barrel_file, 'w') as f:

@@ -87,6 +87,29 @@ def preprocess(title_text_pairs, doc_ids, lexicon):
     
 
 def addDocument_tolexicon_FI(df):
+# =====================================================================================
+    # Assertions - For lexicon and FI
+    
+    # Schema must be complete
+    required_cols = {'title', 'text', 'url', 'authors', 'tags', 'timestamp', 
+                    'text_length', 'title_length', 'num_tags', 'num_authors'}
+    missing_cols = required_cols - set(df.columns)
+    assert not missing_cols, f"DataFrame missing required columns: {missing_cols}"
+
+    # DataFrame must have at least 1 row (new document)
+    assert len(df) >= 1, "DataFrame must contain at least the new document"
+
+    # Last row (new document) must have valid content
+    title = df['title'].iloc[-1]
+    text = df['text'].iloc[-1]
+    assert isinstance(title, str) and title.strip(), "Last row 'title' must be non-empty string"
+    assert isinstance(text, str) and text.strip(), "Last row 'text' must be non-empty string"
+
+    # Computed fields must be sensible
+    assert df['text_length'].iloc[-1] >= 1, "text_length must be positive"
+    assert df['title_length'].iloc[-1] >= 1, "title_length must be positive"
+# =====================================================================================
+
     with open('JSON Files/lexicon.json', 'r') as f:
         lexicon = json.load(f)
     print(f'Lexicon loaded with length: {len(lexicon)}')
@@ -201,12 +224,38 @@ def addDocument_toBarrel(new_forward_index):
 # ----------------------------------------------------------------------------------------------------------
 
 def addDocument_toMetadata(df):
-    # Add the new document to the metadata file
-    print(f'Dataset loaded with {df.shape}\n')
-
+# =====================================================================================
+    # Assertions - For the Metadata
+    
+    # Schema check (subset needed for metadata)
+    metadata_cols = {'title', 'url', 'authors', 'tags'}
+    missing_cols = metadata_cols - set(df.columns)
+    assert not missing_cols, f"DataFrame missing metadata columns: {missing_cols}"
+    
+    # DataFrame must have at least 1 row
+    assert len(df) >= 1, "DataFrame must contain the new document for metadata"
+    
+    # Last row content validation
+    title = df['title'].iloc[-1]
+    url = df['url'].iloc[-1]
+    authors = df['authors'].iloc[-1]
+    tags = df['tags'].iloc[-1]
+    
+    assert isinstance(title, str) and title.strip(), "Metadata title must be non-empty string"
+    assert isinstance(url, str) and url.strip(), "Metadata URL must be non-empty string"
+    assert isinstance(authors, str), "Authors must be string representation of list"
+    assert isinstance(tags, str), "Tags must be string representation of list"
+    
+    # Load existing metadata and validate structure
     with open('JSON Files/metadata.json', 'r') as f:
         metadata = json.load(f)
+    assert isinstance(metadata, dict), "Metadata must be a dictionary"
+    
     print(f'Metadata loaded with length: {len(metadata)}')
+# =====================================================================================
+    
+    # Add the new document to the metadata file
+    print(f'Dataset loaded with {df.shape}\n')
 
     starting_doc_id = 192361
     new_doc_id = starting_doc_id + len(df)
@@ -218,6 +267,10 @@ def addDocument_toMetadata(df):
         "authors": df['authors'].iloc[-1],
         "tags": df['tags'].iloc[-1],
     }
+
+    # Final assertion: verify new entry was created
+    assert doc_id in metadata, f"Failed to add doc_id {doc_id} to metadata"
+    assert metadata[doc_id]['title'] == title, "Metadata title mismatch"
 
     # Save updated metadata back to the file
     with open('JSON Files/metadata.json', 'w') as f:

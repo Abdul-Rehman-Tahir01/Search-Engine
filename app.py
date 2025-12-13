@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 from flask import Flask, render_template, jsonify, request
 import json
 import time
@@ -60,8 +61,54 @@ def results_with_metadata(results):
 
 # Function for processing input
 def processInput(title, text, url, authors, timestamp, tags):
-    tags = [tag.strip() for tag in tags.split(',')]  # Convert to list
-    authors = [author.strip() for author in authors.split(',')]  # Convert to list
+    """
+    Second line of defense: Backend validation of untrusted client data.
+    Assumes frontend did basic checks, but verifies everything independently.
+    """
+# =====================================================================================    
+    # Validation checks
+    
+    # Type and basic format checks
+    if not isinstance(title, str):
+        raise ValueError("Title must be a string")
+    if not isinstance(text, str):
+        raise ValueError("Text must be a string")
+    if not isinstance(url, str):
+        raise ValueError("URL must be a string")
+    if not isinstance(authors, str):
+        raise ValueError("Authors must be a string")
+    if not isinstance(tags, str):
+        raise ValueError("Tags must be a string")
+    if not isinstance(timestamp, str):
+        raise ValueError("Timestamp must be a string")
+    
+    # URL format validation (comprehensive)
+    try:
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in ['http', 'https']:
+            raise ValueError("URL must use http:// or https:// protocol")
+        if not parsed_url.netloc:  # No domain
+            raise ValueError("URL must contain a valid domain")
+    except:
+        raise ValueError("Invalid URL format")
+    
+    # Authors: valid comma-separated format
+    authors_list = [a.strip() for a in authors.split(',') if a.strip()]
+    if len(authors_list) == 0:
+        raise ValueError("At least one author required")
+    if len(authors_list) > 10:
+        raise ValueError("Maximum 10 authors allowed")
+    
+    # Tags: valid comma-separated format
+    tags_list = [t.strip() for t in tags.split(',') if t.strip()]
+    if len(tags_list) == 0:
+        raise ValueError("At least one tag required")
+    if len(tags_list) > 15:
+        raise ValueError("Maximum 15 tags allowed")
+# =====================================================================================    
+
+    tags_clean = [tag.strip() for tag in tags.split(',')]
+    authors_clean = [author.strip() for author in authors.split(',')]
 
     text_length = len(text.split())
     title_length = len(title.split())
@@ -72,9 +119,9 @@ def processInput(title, text, url, authors, timestamp, tags):
         'title': [title],
         'text': [text],
         'url': [url],
-        'authors': [str(authors)],
+        'authors': [str(authors_clean)],
         'timestamp': [timestamp],
-        'tags': [str(tags)],
+        'tags': [str(tags_clean)],
         'text_length': [text_length],
         'title_length': [title_length],
         'num_tags': [num_tags],
@@ -127,6 +174,9 @@ def submit_document():
     try:
         # Retrieve JSON data from the request
         data = request.get_json()
+        if not data:
+            return jsonify({'message': 'No JSON data provided'}), 400
+
         title = data.get('title')
         text = data.get('text')
         url = data.get('url')
@@ -138,7 +188,6 @@ def submit_document():
         print(data_made)
 
         addDocuemnt_start_time = time.perf_counter()
-        # Adding the document to the CSV file
         addDocument(data_made)
         addDocuemnt_end_time = time.perf_counter()
         print(f'Document added in {(addDocuemnt_end_time - addDocuemnt_start_time) * 1000} ms.')
@@ -147,6 +196,9 @@ def submit_document():
         load_metadata()
 
         return jsonify({'message': 'Document added successfully!'}), 200
+    
+    except ValueError as ve:
+        return jsonify({'message': str(ve)}), 400
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 

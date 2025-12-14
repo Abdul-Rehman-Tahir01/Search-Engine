@@ -10,8 +10,81 @@ from nltk.stem import WordNetLemmatizer
 
 
 # ----------------------------------------------------------------------------------------------------------
+'''
+Add a single new logical document to the search engine’s corpus, persist it in the internal document store, and update all indexing structures
+(lexicon, forward index, barrels, metadata) so that the document becomes eligible for search.
+
+@params
+    data: hash table (dict)
+        A mapping describing exactly one document, with at least the keys:
+            'title', 'text', 'url', 'authors', 'timestamp', 'tags'
+
+    Preconditions:
+        - data is a hash table object.
+        - data contains keys: 'title', 'text', 'url', 'authors', 'timestamp', 'tags'.
+        - For each of these keys:
+            - data[key] is a list of length 1.
+            - data['title'][0], data['text'][0], data['url'][0] are non-empty strings.
+            - data['authors'][0], data['tags'][0] are strings representing lists
+            - data['timestamp'][0] is a string representing a valid timestamp
+
+@return
+    None. Mutates persistent state in the document store and indexing structures.
+
+    Postconditions:
+        - The logical document described by data is now part of the system's corpus:
+            - A unique doc_id has been assigned to it internally.
+            - The lexicon and forward index include its words.
+            - Barrels contain postings for its word_ids.
+            - Metadata contains its title, url, authors, and tags.
+        - All previously added documents remain present and structurally valid.
+        - The operation is all-or-nothing: on successful return, the document
+          is fully persisted and indexed; if an exception is raised, no partial,
+          inconsistent state is committed.
+'''
 def addDocument(data):
-    df = pd.read_csv('Dataset/new_documents.csv')
+    csv_path = 'datasets/new_documents.csv'
+
+# ==========================================================================================
+    '''
+    Internal invariants:
+    - If 'Dataset/new_documents.csv' exists:
+            - It can be read into a pandas DataFrame.
+            - Its schema is compatible with the fields in data.
+    - If it does not exist:
+        - The implementation may create a new CSV with appropriate columns.
+    Internal invariants on lexicon, barrels, and metadata must hold
+    '''
+    # File existence invariant
+    if os.path.exists(csv_path):
+        try:
+            df = pd.read_csv(csv_path)
+        except Exception as e:
+            raise AssertionError(
+                f"Internal invariant failed: cannot read '{csv_path}' as CSV"
+            ) from e
+    else:
+        # If file does not exist, create an empty DataFrame with the expected schema
+        expected_cols = [
+            'title', 'text', 'url', 'authors',
+            'timestamp', 'tags',
+            'text_length', 'title_length',
+            'num_tags', 'num_authors'
+        ]
+        df = pd.DataFrame(columns=expected_cols)
+        df.to_csv(csv_path, index=False)
+
+    # Schema invariant
+    required_cols = {
+        'title', 'text', 'url', 'authors',
+        'timestamp', 'tags'
+    }
+    missing = required_cols - set(df.columns)
+    assert not missing, (
+        f"Internal invariant failed: new_documents.csv missing columns: {missing}"
+    )
+# ==========================================================================================
+
     print(f'The new documents dataset loaded with shape {df.shape}')
 
     df_new_doc = pd.DataFrame(data)
@@ -19,7 +92,7 @@ def addDocument(data):
     print(f'The new document added to the dataset with shape {df.shape}')
 
     # Saving this in the same file
-    df.to_csv('Dataset/new_documents.csv', index=False)
+    df.to_csv(csv_path, index=False)
     print('New Document Added to csv!')
 
     addDocument_tolexicon_FI(df)
@@ -86,6 +159,41 @@ def preprocess(title_text_pairs, doc_ids, lexicon):
     return forward_index, lexicon
     
 
+
+'''
+Given the full DataFrame of all new documents (including the newly added one), update the global lexicon and forward index to
+include the last document's title and text, and write any new word_ids and forward index entries to disk. Then update the barrels
+via addDocument_toBarrel so that the new document becomes searchable by its words.
+
+@params
+    df: pandas.DataFrame
+        A DataFrame containing all new documents, where the last row represents
+        the most recently added document.
+
+    Preconditions:
+        - df has at least one row.
+        - df contains at least the columns:
+              'title', 'text', 'url', 'authors', 'tags',
+              'timestamp', 'text_length', 'title_length',
+              'num_tags', 'num_authors'
+        - The last row of df has valid, non-empty 'title' and 'text' strings.
+
+@return
+    None. Mutates:
+        - The global lexicon (in memory and on disk).
+        - The forward index on disk.
+        - The barrel files.
+
+    Postconditions:
+        - The new document has been assigned a new unique doc_id.
+        - For each word in its title/text:
+            - The word is present in the lexicon with a word_id.
+            - The forward index contains an entry mapping doc_id to lists
+              of word_ids for 'title' and 'text'.
+        - Barrels are updated accordingly.
+        - Previously existing lexicon entries and forward index entries remain
+          structurally valid.
+'''
 def addDocument_tolexicon_FI(df):
 # =====================================================================================
     # Assertions - For lexicon and FI
@@ -110,9 +218,14 @@ def addDocument_tolexicon_FI(df):
     assert df['title_length'].iloc[-1] >= 1, "title_length must be positive"
 # =====================================================================================
 
-    with open('JSON Files/lexicon.json', 'r') as f:
-        lexicon = json.load(f)
-    print(f'Lexicon loaded with length: {len(lexicon)}')
+    try:
+        with open('JSON Files/lexicon.json', 'r') as f:
+            lexicon = json.load(f)
+        print(f'Lexicon loaded with length: {len(lexicon)}')
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Corrupted lexicon.json file")
+        print(f"JSON Error: {e}")
+        raise
 
     # Initializing the forward index
     forward_index = {}
@@ -148,17 +261,17 @@ def get_barrel(word_id):
     # For barrel_10_1 to barrel_10_1000 (First 10000 words)
     if word_id < 10000:
         barrel_index = (word_id // 10) + 1
-        return f'Barrels/barrel_10/barrel_10_{barrel_index}.json'
+        return f'JSON Files/Barrels/barrel_10/barrel_10_{barrel_index}.json'
     
     # For barrel_250_1 to barrel_250_80 (Next 20000 words)
     elif word_id >= 10000 and word_id < 30000:
         barrel_index = ((word_id-10000) // 250) + 1
-        return f'Barrels/barrel_250/barrel_250_{barrel_index}.json'
+        return f'JSON Files/Barrels/barrel_250/barrel_250_{barrel_index}.json'
     
     # For barrel_10000_1 to barrel_10000_46 (Remaining words)
     else:
         barrel_index = (word_id // 10000) - 2
-        return f'Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
+        return f'JSON Files/Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
     
 
 '''
@@ -203,9 +316,18 @@ def update_barrel(word_id, inverted_data):
     barrel_file = get_barrel(word_id)
 
     if os.path.exists(barrel_file):
-        with open(barrel_file) as f:
-            barrel_data = json.load(f)
-        print(f'{barrel_file} loaded with {len(barrel_data)} words')
+        try:
+            with open(barrel_file) as f:
+                barrel_data = json.load(f)
+            print(f'{barrel_file} loaded with {len(barrel_data)} words')
+        except json.JSONDecodeError as e:
+            print(f"ERROR: Corrupted JSON in {barrel_file}")
+            print(f"JSON Error: {e}")
+            print(f"Creating backup and starting fresh barrel...")
+            # Create backup of corrupted file
+            backup_file = barrel_file.replace('.json', '_corrupted_backup.json')
+            os.rename(barrel_file, backup_file)
+            barrel_data = {}
     else:
         print(f"{barrel_file} does not exist, creating a new barrel.")
         barrel_data = {}
@@ -331,6 +453,34 @@ def addDocument_toBarrel(new_forward_index):
 
 # ----------------------------------------------------------------------------------------------------------
 
+
+'''
+Add the metadata (title, url, authors, tags) for the last document in df into the global metadata store,
+assigning it a unique doc_id consistent with the indexing functions.
+
+@params
+    df: pandas.DataFrame
+        A DataFrame containing all new documents, where the last row is the
+        newly added document.
+
+    Preconditions:
+        - df has at least one row.
+        - df contains columns: 'title', 'url', 'authors', 'tags'.
+        - The last row of df has:
+            - Non-empty 'title' and 'url' strings.
+            - 'authors' and 'tags' strings representing lists.
+
+@return
+    None. Mutates:
+        - The metadata.json file: adds a new entry for the last document in df.
+
+    Postconditions:
+        - A new doc_id has been assigned to the last document in df.
+        - metadata[doc_id] exists and has keys:
+              'title', 'url', 'authors', 'tags',
+          with values equal to the corresponding df fields from the last row.
+        - All previous metadata entries remain unchanged and structurally valid.
+'''
 def addDocument_toMetadata(df):
 # =====================================================================================
     # Assertions - For the Metadata
@@ -355,11 +505,15 @@ def addDocument_toMetadata(df):
     assert isinstance(tags, str), "Tags must be string representation of list"
     
     # Load existing metadata and validate structure
-    with open('JSON Files/metadata.json', 'r') as f:
-        metadata = json.load(f)
-    assert isinstance(metadata, dict), "Metadata must be a dictionary"
-    
-    print(f'Metadata loaded with length: {len(metadata)}')
+    try:
+        with open('JSON Files/metadata.json', 'r') as f:
+            metadata = json.load(f)
+        assert isinstance(metadata, dict), "Metadata must be a dictionary"
+        print(f'Metadata loaded with length: {len(metadata)}')
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Corrupted metadata.json file")
+        print(f"JSON Error: {e}")
+        raise
 # =====================================================================================
     
     # Add the new document to the metadata file

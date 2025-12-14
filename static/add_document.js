@@ -5,8 +5,11 @@ async function submitDocument(event) {
     const successMessage = document.getElementById('success-message');
     const errorMessage = document.getElementById('error-message');
 
-    successMessage.textContent = ''; // Clear previous messages
-    errorMessage.textContent = ''; // Clear previous messages
+    // Clear previous messages
+    successMessage.textContent = ''; 
+    successMessage.style.display = 'none';
+    errorMessage.textContent = ''; 
+    errorMessage.style.display = 'none';
 
     console.log(form);
     
@@ -90,14 +93,25 @@ if (!formData.title) {
     
     // If validation fails, show errors and stop
     if (errors.length > 0) {
-        errorMessage.textContent = errors.join('\n');
+        errorMessage.innerHTML = errors.join('<br>');
         errorMessage.style.display = 'block';  
-        form.parentNode.insertBefore(errorMessage, form.nextSibling);
         return; // Don't send to backend
     }
 // =====================================================================================    
 
+    // Show loading spinner
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading';
+    loadingDiv.id = 'loading-spinner';
+    loadingDiv.innerHTML = '<div class="spinner"></div><p style="color: white; margin-top: 10px;">Submitting document...</p>';
+    form.appendChild(loadingDiv);
+
+    // Disable submit button
+    const submitButton = form.querySelector('.submit-button');
+    submitButton.disabled = true;
+
     try {
+        console.log('Sending data:', formData);
         // Send POST request to the backend
         const response = await fetch('/submit-document', {
             method: 'POST',
@@ -107,20 +121,35 @@ if (!formData.title) {
             body: JSON.stringify(formData),
         });
 
+        // Remove loading spinner
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.remove();
+        submitButton.disabled = false;
+
+        console.log('Response status:', response.status);
+        const responseData = await response.json();
+        console.log('Response data:', responseData);
+
         // Check if the request was successful
         if (response.ok) {
             successMessage.style.display = 'block';
-            successMessage.textContent = 'Document submitted successfully!';
+            successMessage.textContent = 'Document submitted successfully! Redirecting...';
+            form.reset();
             setTimeout(() => {
                 window.location.href = '/'; // Redirect to the home page
-            }, 1000);
+            }, 1500);
         } else {
-            const error = await response.json();
-            errorMessage.textContent = `Server Error: ${error.message}`;
-            form.parentNode.insertBefore(errorMessage, form.nextSibling);
+            errorMessage.textContent = `Error: ${responseData.message || 'Unknown error'}`;
+            errorMessage.style.display = 'block';
         }
     } catch (err) {
+        // Remove loading spinner
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.remove();
+        submitButton.disabled = false;
+
+        console.error('Network error:', err);
         errorMessage.textContent = `Network Error: ${err.message}`;
-        form.parentNode.insertBefore(errorMessage, form.nextSibling);
+        errorMessage.style.display = 'block';
     }
 }

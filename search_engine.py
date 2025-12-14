@@ -97,17 +97,17 @@ def get_barrel(word_id):
     # For barrel_10_1 to barrel_10_1000 (First 10000 words)
     if word_id < 10000:
         barrel_index = (word_id // 10) + 1
-        return f'Barrels/barrel_10/barrel_10_{barrel_index}.json'
+        return f'JSON Files/Barrels/barrel_10/barrel_10_{barrel_index}.json'
     
     # For barrel_250_1 to barrel_250_80 (Next 20000 words)
     elif word_id >= 10000 and word_id < 30000:
         barrel_index = ((word_id-10000) // 250) + 1
-        return f'Barrels/barrel_250/barrel_250_{barrel_index}.json'
+        return f'JSON Files/Barrels/barrel_250/barrel_250_{barrel_index}.json'
     
     # For barrel_10000_1 to barrel_10000_46 (Remaining words)
     else:
         barrel_index = (word_id // 10000) - 2
-        return f'Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
+        return f'JSON Files/Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
 
 
 # ========= Ranking the documents =========

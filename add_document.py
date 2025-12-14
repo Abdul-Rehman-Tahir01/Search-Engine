@@ -11,7 +11,7 @@ from nltk.stem import WordNetLemmatizer
 
 # ----------------------------------------------------------------------------------------------------------
 '''
-Add a single new logical document to the search engine’s corpus, persist it in the internal document store, and update all indexing structures
+Add a single new logical document to the search engine's corpus, persist it in the internal document store, and update all indexing structures
 (lexicon, forward index, barrels, metadata) so that the document becomes eligible for search.
 
 @params

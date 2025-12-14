@@ -7,6 +7,33 @@ from nltk.corpus import stopwords
 with open('JSON Files/lexicon.json') as f:
     lexicon = json.load(f)
 
+# Ranking configuration (loaded from JSON Files/ranking_config.json with safe defaults)
+DEFAULT_RANKING_CONFIG = {
+    "version": 1,
+    "weights": {
+        "tf_title": 10.0,
+        "tf_text": 0.5,
+        "tag_match": 0.0,
+        "recency_days": 0.0,
+    },
+    "bias": 0.0,
+}
+
+
+def load_ranking_config(path="JSON Files/ranking_config.json"):
+    try:
+        with open(path, "r") as f:
+            cfg = json.load(f)
+        if not isinstance(cfg, dict):
+            raise ValueError("Ranking config must be a JSON object")
+        return cfg
+    except Exception as e:
+        print(f"Warning: using default ranking config due to error: {e}")
+        return DEFAULT_RANKING_CONFIG
+
+
+RANKING_CONFIG = load_ranking_config()
+
 
 # ========= Getting the closest match by jaccard similarity =========
 '''
@@ -111,13 +138,23 @@ def get_barrel(word_id):
 
 
 # ========= Ranking the documents =========
-def calculate_score(posting):
-    score = 0
+def calculate_score(posting, ranking_config=None):
+    cfg = ranking_config or RANKING_CONFIG
+    weights = cfg.get('weights', {}) if isinstance(cfg, dict) else {}
+    bias = cfg.get('bias', 0.0) if isinstance(cfg, dict) else 0.0
 
-    tf_title = posting['positions'].get('title', 0)
-    tf_text = posting['positions'].get('text', 0)
+    tf_title = posting.get('positions', {}).get('title', 0)
+    tf_text = posting.get('positions', {}).get('text', 0)
+    tag_match = posting.get('tag_match', 0)
+    recency_days = posting.get('recency_days', 0)
 
-    score = (tf_title*10) + (tf_text*0.5) 
+    score = 0.0
+    score += weights.get('tf_title', 0.0) * tf_title
+    score += weights.get('tf_text', 0.0) * tf_text
+    score += weights.get('tag_match', 0.0) * tag_match
+    score += weights.get('recency_days', 0.0) * recency_days
+    score += bias
+
     return score
 
 def rank_documents(postings_list):

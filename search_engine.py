@@ -72,6 +72,9 @@ Compute the Jaccard similarity between two collections of n-grams, defined as |i
 def jaccard_similarity(grams1, grams2):
     intersection = set(grams1).intersection(set(grams2))
     union = set(grams1).union(set(grams2))
+    # Guard against empty union (e.g., short query producing no n-grams)
+    if len(union) == 0:
+        return 0.0
     return len(intersection) / len(union)
 
 

@@ -2,10 +2,17 @@ import pandas as pd
 import json
 import string
 import os
+import tempfile
+from filelock import FileLock
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords, wordnet
 from nltk.stem import WordNetLemmatizer
+
+# Ensure locks directory exists for file locks
+LOCKS_DIR = 'JSON Files/Barrels/.locks'
+if not os.path.exists(LOCKS_DIR):
+    os.makedirs(LOCKS_DIR)
 
 
 
@@ -314,85 +321,118 @@ If not, create a new entry for that word_id. Enforce index invariants for that w
 # Function to add the new inverted index words to the respective barrel
 def update_barrel(word_id, inverted_data):
     barrel_file = get_barrel(word_id)
-
-    if os.path.exists(barrel_file):
-        try:
-            with open(barrel_file) as f:
-                barrel_data = json.load(f)
-            print(f'{barrel_file} loaded with {len(barrel_data)} words')
-        except json.JSONDecodeError as e:
-            print(f"ERROR: Corrupted JSON in {barrel_file}")
-            print(f"JSON Error: {e}")
-            print(f"Creating backup and starting fresh barrel...")
-            # Create backup of corrupted file
-            backup_file = barrel_file.replace('.json', '_corrupted_backup.json')
-            os.rename(barrel_file, backup_file)
-            barrel_data = {}
-    else:
-        print(f"{barrel_file} does not exist, creating a new barrel.")
-        barrel_data = {}
-
-# =====================================================================================
-    word_id = str(word_id)
     
-    if word_id in barrel_data:
-        print(f"Word ID {word_id} already exists in the barrel.")
+    # Create a lock file path based on the barrel file name
+    # This ensures each barrel has its own lock, allowing concurrent updates to different barrels
+    barrel_name = os.path.basename(barrel_file)
+    lock_file = os.path.join(LOCKS_DIR, f"{barrel_name}.lock")
     
-
-        for doc_id, posting in inverted_data['postings'].items():
-            if doc_id not in barrel_data[word_id]['postings']:
-                # New document for this word_id → increment df
-                barrel_data[word_id]['df'] += 1
-
-            # In all cases, set/overwrite posting
-            barrel_data[word_id]['postings'][doc_id] = posting
-    else:
-        print(f"Word ID {word_id} does not exist, adding to the barrel.")
-        barrel_data[word_id] = inverted_data
-
-    # Invariant Assertion, df == len(postings)
-    df = barrel_data[word_id]['df']
-    postings = barrel_data[word_id]['postings']
-    assert df == len(postings), f"df mismatch for word_id {word_id}: df={df}, postings={len(postings)}"
-
-    # Invariant Assertion, positing must have 'tf' and 'position' keys
-    for doc_id, posting in barrel_data[word_id]['postings'].items():
-        assert 'tf' in posting, (
-            f"Missing 'tf' in posting for word_id {word_id}, doc_id {doc_id}"
-        )
-        assert 'positions' in posting, (
-            f"Missing 'positions' in posting for word_id {word_id}, doc_id {doc_id}"
-        )
-
-        positions = posting['positions']
-        assert isinstance(positions, dict), (
-            f"'positions' must be a dict for word_id {word_id}, doc_id {doc_id}"
-        )
-        assert 'title' in positions and 'text' in positions, (
-            f"Missing 'title' or 'text' in positions for word_id {word_id}, doc_id {doc_id}"
-        )
-
-    # Invariant Assertion, tf must be equal to the sum of 'title' and 'text'
-    for doc_id, posting in barrel_data[word_id]['postings'].items():
-        positions = posting['positions']
-        title_pos = positions.get('title', 0)
-        text_pos = positions.get('text', 0)
+    # Acquire an exclusive lock for this barrel to prevent concurrent modifications
+    # FileLock is cross-platform and handles process-level locking
+    lock = FileLock(lock_file, timeout=30)
+    
+    with lock:
+        # Critical section: only one process can execute this block for a given barrel at a time
         
-        # tf must be positive and equal to sum of title + text occurrences
-        assert posting['tf'] == title_pos + text_pos, (
-            f"tf mismatch for word_id {word_id}, doc_id {doc_id}: "
-            f"tf={posting['tf']}, title_pos={title_pos}, text_pos={text_pos}"
-        )
-        assert posting['tf'] >= 1, (
-            f"tf must be >= 1 for word_id {word_id}, doc_id {doc_id}"
-        )
+        # Step 1: Load existing barrel data
+        if os.path.exists(barrel_file):
+            try:
+                with open(barrel_file) as f:
+                    barrel_data = json.load(f)
+                print(f'{barrel_file} loaded with {len(barrel_data)} words')
+            except json.JSONDecodeError as e:
+                print(f"ERROR: Corrupted JSON in {barrel_file}")
+                print(f"JSON Error: {e}")
+                print(f"Creating backup and starting fresh barrel...")
+                # Create backup of corrupted file
+                backup_file = barrel_file.replace('.json', '_corrupted_backup.json')
+                os.rename(barrel_file, backup_file)
+                barrel_data = {}
+        else:
+            print(f"{barrel_file} does not exist, creating a new barrel.")
+            barrel_data = {}
+
+# =====================================================================================
+        # Step 2: Merge inverted_data into barrel_data
+        word_id = str(word_id)
+        
+        if word_id in barrel_data:
+            print(f"Word ID {word_id} already exists in the barrel.")
+        
+            for doc_id, posting in inverted_data['postings'].items():
+                if doc_id not in barrel_data[word_id]['postings']:
+                    # New document for this word_id → increment df
+                    barrel_data[word_id]['df'] += 1
+
+                # In all cases, set/overwrite posting
+                barrel_data[word_id]['postings'][doc_id] = posting
+        else:
+            print(f"Word ID {word_id} does not exist, adding to the barrel.")
+            barrel_data[word_id] = inverted_data
+
+        # Step 3: Validate invariants before writing
+        # Invariant Assertion, df == len(postings)
+        df = barrel_data[word_id]['df']
+        postings = barrel_data[word_id]['postings']
+        assert df == len(postings), f"df mismatch for word_id {word_id}: df={df}, postings={len(postings)}"
+
+        # Invariant Assertion, positing must have 'tf' and 'position' keys
+        for doc_id, posting in barrel_data[word_id]['postings'].items():
+            assert 'tf' in posting, (
+                f"Missing 'tf' in posting for word_id {word_id}, doc_id {doc_id}"
+            )
+            assert 'positions' in posting, (
+                f"Missing 'positions' in posting for word_id {word_id}, doc_id {doc_id}"
+            )
+
+            positions = posting['positions']
+            assert isinstance(positions, dict), (
+                f"'positions' must be a dict for word_id {word_id}, doc_id {doc_id}"
+            )
+            assert 'title' in positions and 'text' in positions, (
+                f"Missing 'title' or 'text' in positions for word_id {word_id}, doc_id {doc_id}"
+            )
+
+        # Invariant Assertion, tf must be equal to the sum of 'title' and 'text'
+        for doc_id, posting in barrel_data[word_id]['postings'].items():
+            positions = posting['positions']
+            title_pos = positions.get('title', 0)
+            text_pos = positions.get('text', 0)
+            
+            # tf must be positive and equal to sum of title + text occurrences
+            assert posting['tf'] == title_pos + text_pos, (
+                f"tf mismatch for word_id {word_id}, doc_id {doc_id}: "
+                f"tf={posting['tf']}, title_pos={title_pos}, text_pos={text_pos}"
+            )
+            assert posting['tf'] >= 1, (
+                f"tf must be >= 1 for word_id {word_id}, doc_id {doc_id}"
+            )
 
 # =====================================================================================
 
-    # Save the updated barrel data back to the file
-    with open(barrel_file, 'w') as f:
-        json.dump(barrel_data, f)
-    print(f'{barrel_file} updated with {len(barrel_data)} words')
+        # Step 4: Atomic write using temp file + rename pattern
+        # Write to a temporary file first to prevent partial writes from corrupting the live file
+        # If the process crashes during json.dump, the original barrel_file remains intact
+        
+        barrel_dir = os.path.dirname(barrel_file)
+        
+        # Create a temporary file in the same directory as the target barrel
+        # (same filesystem ensures atomic rename)
+        with tempfile.NamedTemporaryFile(
+            mode='w', 
+            dir=barrel_dir, 
+            delete=False, 
+            suffix='.tmp'
+        ) as temp_file:
+            temp_path = temp_file.name
+            json.dump(barrel_data, temp_file)
+        
+        # Atomically replace the old barrel file with the new one
+        # On most filesystems, os.replace is atomic: either the old file or the new file
+        # is visible, never a half-written file
+        os.replace(temp_path, barrel_file)
+        
+        print(f'{barrel_file} updated with {len(barrel_data)} words')
 
 
 '''

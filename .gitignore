@@ -1,3 +1,5 @@
 
 datasets/
 JSON Files/
+# Lock files for barrel concurrency control
+*.lock

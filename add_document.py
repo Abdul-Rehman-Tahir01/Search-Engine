@@ -4,6 +4,7 @@ import string
 import os
 import tempfile
 from filelock import FileLock
+from barrel_tree import get_barrel
 from nltk import pos_tag
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords, wordnet
@@ -262,24 +263,6 @@ def addDocument_tolexicon_FI(df):
 
     addDocument_toBarrel(forward_index)
 
-# ----------------------------------------------------------------------------------------------------------
-
-def get_barrel(word_id):
-    # For barrel_10_1 to barrel_10_1000 (First 10000 words)
-    if word_id < 10000:
-        barrel_index = (word_id // 10) + 1
-        return f'JSON Files/Barrels/barrel_10/barrel_10_{barrel_index}.json'
-    
-    # For barrel_250_1 to barrel_250_80 (Next 20000 words)
-    elif word_id >= 10000 and word_id < 30000:
-        barrel_index = ((word_id-10000) // 250) + 1
-        return f'JSON Files/Barrels/barrel_250/barrel_250_{barrel_index}.json'
-    
-    # For barrel_10000_1 to barrel_10000_46 (Remaining words)
-    else:
-        barrel_index = (word_id // 10000) - 2
-        return f'JSON Files/Barrels/barrel_10000/barrel_10000_{barrel_index}.json'
-    
 
 '''
 Merge a partial inverted index entry for a single word_id into the corresponding barrel file. If the word_id is already present in the barrel, update its postings and df accordingly. 

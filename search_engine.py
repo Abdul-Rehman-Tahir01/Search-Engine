@@ -171,24 +171,59 @@ def rank_documents(postings_list):
 
 
 # ========= The single word search function =========
+'''
+Retrieve postings for a single query term from the inverted index.
+@params
+    query: str
+        A single search term (will be lowercased).
+    lexicon: mapping[str, int]
+        Lexicon mapping terms to word_ids.
+
+Preconditions:
+    - query is a non-empty string.
+    - lexicon is a mapping of lowercase terms to integer word_ids.
+    - Barrel files referenced are readable JSON objects with postings.
+
+@return:
+    (postings, term_metadata)
+        postings: dict mapping doc_id (str) to posting dict with 'positions' field, or error string if not found.
+        term_metadata: dict with independent metadata for this term only:
+            - 'message': str or None, describing any fallback (e.g., closest match used) or error.
+            - 'term': str, the actual term searched after normalization/correction.
+
+Postconditions:
+    - Returns a new, independent term_metadata dict that does not share state with any other call.
+    - If term not in lexicon, uses Jaccard correction and sets term_metadata['message'] accordingly.
+    - If term found, postings is a dict of doc postings; otherwise returns error string and metadata.
+'''
 def single_word_search(query, lexicon):
-    query = query.lower() 
-    result_metadata = {'message': None}
+    original_term = query
+    query = query.lower()
+    
+    # Create independent metadata for this term only
+    term_metadata = {
+        'message': None,
+        'term': query,
+        'original_term': original_term
+    }
 
     if query not in lexicon:
         closest_match = get_closest_match(query, lexicon)
         print(f'No exact match found.\nInstead, showing results for {closest_match}')
-        result_metadata['message'] = f'No exact match found. Instead, showing results for \'{closest_match}\''
+        term_metadata['message'] = f'No exact match found. Instead, showing results for \'{closest_match}\''
+        term_metadata['term'] = closest_match
         query = closest_match
 
-    word_id = lexicon[query]
+    word_id = lexicon.get(query)
     print(f'The word id is {word_id}')
     if word_id is None:
-        return f"Word '{query}' not found in the lexicon", result_metadata
+        term_metadata['message'] = f"Word '{query}' not found in the lexicon"
+        return None, term_metadata
     
     barrel_file = get_barrel(word_id)
     if barrel_file is None:
-        return f"Word '{query}' not found in the inverted index", result_metadata
+        term_metadata['message'] = f"Word '{query}' not found in the inverted index"
+        return None, term_metadata
     
     try:
         barrel_start_time = time.perf_counter()
@@ -198,15 +233,44 @@ def single_word_search(query, lexicon):
         print(f'{barrel_file} loaded in {(barrel_end_time - barrel_start_time) * 1000} ms.')
 
         if str(word_id) in barrel:
-            return barrel[str(word_id)]['postings'], result_metadata
+            return barrel[str(word_id)]['postings'], term_metadata
         else:
-            return f"Word '{query}' not found in the barrel file", result_metadata
+            term_metadata['message'] = f"Word '{query}' not found in the barrel file"
+            return None, term_metadata
         
     except FileNotFoundError:
-        return f"Barrel file '{barrel_file}' not found", result_metadata
+        term_metadata['message'] = f"Barrel file '{barrel_file}' not found"
+        return None, term_metadata
     
 
 # ========= The multiple word search function =========
+'''
+Execute a multi-term search query with simple tokenization and stopword filtering, returning ranked postings.
+@params
+    query_string: str
+        Raw user query string to search (may contain punctuation and mixed case).
+    lexicon: mapping[str, int]
+        Lexicon mapping terms to word_ids; defaults to module-level lexicon.
+
+Preconditions:
+    - query_string is a string.
+    - lexicon is a mapping of lowercase terms to integer word_ids.
+    - Barrel files referenced by terms are readable JSON objects.
+
+@return:
+    (ranked_results, result_metadata)
+        ranked_results: list of dicts with keys 'ID' and 'score' (top 15 combined intersection/union ranking).
+        result_metadata: dict with aggregate metadata for the full query:
+            - 'message': str or None, overall feedback (e.g., "No relevant results found. Here are some top results.").
+            - 'terms_searched': list of terms actually searched (after normalization).
+            - 'per_term_messages': list of per-term messages for transparency (optional).
+
+Postconditions:
+    - If query has no valid tokens after cleaning, returns error string (not tuple).
+    - If no postings found for any term, returns error string (not tuple).
+    - Otherwise returns tuple: (ranked_results[:15], aggregate result_metadata).
+    - result_metadata is newly constructed from collected per-term metadata, not shared during collection.
+'''
 def multiple_word_search(query_string, lexicon=lexicon):
     original_query = query_string
     print(f"\nQuery: {original_query}")
@@ -225,17 +289,25 @@ def multiple_word_search(query_string, lexicon=lexicon):
     
     print(f"Query words: {query_words}")
 
-    # Getting the list of documents for each word in the query
+    # Collect postings and independent per-term metadata
     posting_list = []
+    term_metadata_list = []
 
     for word in query_words:
-        postings, result_metadata = single_word_search(word, lexicon)
+        postings, term_metadata = single_word_search(word, lexicon)
+        term_metadata_list.append(term_metadata)
 
         if postings is not None and isinstance(postings, dict):
             posting_list.append(postings)  
     
     if not posting_list:
-        return f"No result found for query: '{original_query}'"
+        # Build aggregate metadata from collected term metadata
+        aggregate_metadata = {
+            'message': f"No result found for query: '{original_query}'",
+            'terms_searched': [tm['term'] for tm in term_metadata_list],
+            'per_term_messages': [tm['message'] for tm in term_metadata_list if tm['message']]
+        }
+        return [], aggregate_metadata
     
     # Perform AND operation (intersection) on the posting lists
     intersection_docs = set(posting_list[0].keys())
@@ -250,10 +322,13 @@ def multiple_word_search(query_string, lexicon=lexicon):
         ranked_results = rank_documents(intersection_postings)
     print(f"Length of intersection: {len(intersection_docs)}")
 
+    # Build aggregate result_metadata
+    aggregate_message = None
+    
     # Perform OR operation (union) on the posting lists if the result of intersection is very small
     if len(intersection_docs) <= 3:
-        if(len(intersection_docs) == 0):
-            result_metadata['message'] = 'No relevant results found. Here are some top results.'
+        if len(intersection_docs) == 0:
+            aggregate_message = 'No relevant results found. Here are some top results.'
         
         union_docs = set()
 
@@ -267,5 +342,15 @@ def multiple_word_search(query_string, lexicon=lexicon):
             doc_id: postings[doc_id] for postings in posting_list for doc_id in union_docs if doc_id in postings
         }
         ranked_results.extend(rank_documents(union_postings))
+    
+    # Collect per-term messages for transparency
+    per_term_messages = [tm['message'] for tm in term_metadata_list if tm.get('message')]
+    
+    # Build final aggregate metadata
+    result_metadata = {
+        'message': aggregate_message,
+        'terms_searched': [tm['term'] for tm in term_metadata_list],
+        'per_term_messages': per_term_messages if per_term_messages else None
+    }
 
     return ranked_results[:15], result_metadata

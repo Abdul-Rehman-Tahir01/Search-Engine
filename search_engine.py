@@ -3,6 +3,8 @@ import string
 import time
 from nltk.corpus import stopwords
 from barrel_tree import get_barrel
+import re
+
 
 # Loading the lexicon in the RAM
 with open('JSON Files/lexicon.json') as f:
@@ -258,6 +260,123 @@ Postconditions:
     - result_metadata is newly constructed from collected per-term metadata, not shared during collection.
 '''
 def multiple_word_search(query_string, lexicon=lexicon):
+    # Detect boolean queries with operators/parentheses and delegate
+    def _looks_like_boolean_query(q: str) -> bool:
+        import re
+        # Match operators as whole words (word boundaries)
+        upper = q.upper()
+        # Check for operators, but also verify there are non-stopword terms present
+        # to avoid treating "the and is" as a boolean query
+        has_operators = bool(re.search(r'\b(AND|OR|NOT)\b', upper)) or "(" in q or ")" in q
+        if not has_operators:
+            return False
+        
+        # Quick check: if query only contains stopwords after stripping punctuation,
+        # it's not a real boolean query (e.g., "the and is")
+        test_q = q
+        for char in string.punctuation:
+            test_q = test_q.replace(char, '')
+        words = test_q.lower().split()
+        # Simple heuristic: if all words are stopwords or operators, not a boolean query
+        ops = {'and', 'or', 'not'}
+        try:
+            stops = set(stopwords.words('english'))
+        except:
+            stops = set()
+        non_trivial = [w for w in words if w not in stops and w not in ops]
+        return len(non_trivial) > 0
+
+    def _load_all_doc_ids(path="JSON Files/metadata.json"):
+        try:
+            with open(path, "r") as f:
+                metadata = json.load(f)
+            return set(metadata.keys()) if isinstance(metadata, dict) else set()
+        except Exception:
+            return set()
+
+    def _sum_postings(postings_maps, restrict_to=None):
+        aggregated = {}
+        for pm in postings_maps:
+            if not pm or not isinstance(pm, dict):
+                continue
+            for doc_id, posting in pm.items():
+                if restrict_to is not None and doc_id not in restrict_to:
+                    continue
+                pos = posting.get("positions", {})
+                title = pos.get("title", 0)
+                text = pos.get("text", 0)
+                agg = aggregated.setdefault(doc_id, {"positions": {"title": 0, "text": 0}})
+                agg_pos = agg["positions"]
+                agg_pos["title"] += title
+                agg_pos["text"] += text
+        return aggregated
+
+    def _evaluate_ast(node, lexicon, universe):
+        from boolean_query_parser import Word, And, Or, Not
+        if isinstance(node, Word):
+            print(f"[BOOLEAN] Searching for term: '{node.term}'")
+            postings, _meta = single_word_search(node.term, lexicon)
+            postings = postings or {}
+            print(f"[BOOLEAN] Term '{node.term}' found in {len(postings)} documents")
+            return set(postings.keys()), postings
+        if isinstance(node, Not):
+            print(f"[BOOLEAN] Applying NOT operator")
+            child_set, _child_pm = _evaluate_ast(node.child, lexicon, universe)
+            result_set = universe - child_set
+            print(f"[BOOLEAN] NOT result: {len(result_set)} documents (universe: {len(universe)}, excluded: {len(child_set)})")
+            return result_set, {}
+        if isinstance(node, And):
+            print(f"[BOOLEAN] Applying AND operator with {len(node.parts)} operands")
+            child_sets = []
+            child_pms = []
+            for part in node.parts:
+                s, pm = _evaluate_ast(part, lexicon, universe)
+                child_sets.append(s)
+                child_pms.append(pm)
+            if not child_sets:
+                return set(), {}
+            inter = child_sets[0].copy()
+            for s in child_sets[1:]:
+                inter.intersection_update(s)
+            aggregated = _sum_postings(child_pms, restrict_to=inter)
+            print(f"[BOOLEAN] AND result: {len(inter)} documents")
+            return inter, aggregated
+        if isinstance(node, Or):
+            print(f"[BOOLEAN] Applying OR operator with {len(node.parts)} operands")
+            child_sets = []
+            child_pms = []
+            for part in node.parts:
+                s, pm = _evaluate_ast(part, lexicon, universe)
+                child_sets.append(s)
+                child_pms.append(pm)
+            union = set()
+            for s in child_sets:
+                union.update(s)
+            aggregated = _sum_postings(child_pms, restrict_to=union)
+            print(f"[BOOLEAN] OR result: {len(union)} documents")
+            return union, aggregated
+        return set(), {}
+
+    def boolean_search(query_string, lexicon=lexicon):
+        from boolean_query_parser import parse as parse_boolean
+        print(f"\n[BOOLEAN QUERY MODE] Query: {query_string}")
+        try:
+            ast = parse_boolean(query_string)
+            print(f"[BOOLEAN QUERY] Parsed AST: {ast}")
+        except SyntaxError as e:
+            return [], {"message": f"Invalid boolean query: {e}", "terms_searched": [], "per_term_messages": None}
+        universe = _load_all_doc_ids()
+        doc_set, postings_map = _evaluate_ast(ast, lexicon, universe)
+        if not doc_set:
+            return [], {"message": "No documents match the boolean query.", "terms_searched": [], "per_term_messages": None}
+        if not postings_map:
+            postings_map = {doc_id: {"positions": {"title": 0, "text": 0}} for doc_id in doc_set}
+        ranked = rank_documents(postings_map)
+        return ranked[:15], {"message": None, "terms_searched": [], "per_term_messages": None}
+
+    if _looks_like_boolean_query(query_string):
+        return boolean_search(query_string, lexicon=lexicon)
+
     original_query = query_string
     print(f"\nQuery: {original_query}")
 

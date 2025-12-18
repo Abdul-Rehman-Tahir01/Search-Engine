@@ -76,7 +76,7 @@ button:hover {
 }
 
 .result {
-    background-color: white;
+    background-color: rgb(255, 255, 255);
     border: 1px solid #ddd;
     padding: 20px;
     margin-bottom: 20px;

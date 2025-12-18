@@ -319,12 +319,14 @@ def multiple_word_search(query_string, lexicon=lexicon):
             postings = postings or {}
             print(f"[BOOLEAN] Term '{node.term}' found in {len(postings)} documents")
             return set(postings.keys()), postings
+        
         if isinstance(node, Not):
             print(f"[BOOLEAN] Applying NOT operator")
             child_set, _child_pm = _evaluate_ast(node.child, lexicon, universe)
             result_set = universe - child_set
             print(f"[BOOLEAN] NOT result: {len(result_set)} documents (universe: {len(universe)}, excluded: {len(child_set)})")
             return result_set, {}
+        
         if isinstance(node, And):
             print(f"[BOOLEAN] Applying AND operator with {len(node.parts)} operands")
             child_sets = []
@@ -341,6 +343,7 @@ def multiple_word_search(query_string, lexicon=lexicon):
             aggregated = _sum_postings(child_pms, restrict_to=inter)
             print(f"[BOOLEAN] AND result: {len(inter)} documents")
             return inter, aggregated
+        
         if isinstance(node, Or):
             print(f"[BOOLEAN] Applying OR operator with {len(node.parts)} operands")
             child_sets = []

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "weights": {
+    "tf_title": 10.0,
+    "tf_text": 0.5,
+    "tag_match": 2.0,
+    "recency_days": 0.0
+  },
+  "bias": 0.0
+}
